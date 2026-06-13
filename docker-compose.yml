@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: ./docker/backend/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src/backend:/app
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1 # pythonのキャッシュを作らないようにする(大量の同期が発生するため)
+      - PYTHONUNBUFFERED=1 #
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./docker/frontend/Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src/frontend:/app
+    tty: true
