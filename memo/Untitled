@@ -1,0 +1,152 @@
+`.dockerignore` をプロジェクトルートに追加しました。frontend のビルドも成功しています。
+
+```1:15:/home/m4kur4/development/seaweed/.dockerignore
+# DB データ（コンテナ内 mysql が root 所有で作成するため、ビルド時に読めない）
+docker/db/data
+
+# ビルドに不要なディレクトリ
+.git
+memo
+docs
+
+# Python
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+# Node（コンテナ内で npm ci するためホストの node_modules は不要）
+**/node_modules
+```
+
+---
+
+## ビルドコンテキストとは
+
+Docker でイメージをビルドするとき、まず **「ビルドコンテキスト」** と呼ばれるディレクトリの中身を Docker デーモンに送ります。
+
+`docker-compose.yml` ではこうなっています。
+
+```yaml
+frontend:
+  build:
+    context: .          # ← プロジェクトルート全体
+    dockerfile: ./docker/frontend/Dockerfile
+```
+
+`context: .` は「`docker-compose.yml` があるディレクトリ（= プロジェクトルート）をビルドコンテキストにする」という意味です。
+
+### ビルドの流れ
+
+```
+ホスト（あなたのPC）
+┌─────────────────────────────────────────┐
+│  seaweed/                               │
+│  ├── src/frontend/                      │
+│  ├── docker/db/data/  ← MySQLのデータ   │
+│  ├── memo/                              │
+│  └── ...                                │
+└─────────────────────────────────────────┘
+         │
+         │ ① context 配下を走査して tar にまとめる
+         ▼
+┌─────────────────────────────────────────┐
+│  Docker デーモン                         │
+│  ② Dockerfile の命令を順に実行           │
+│     COPY ./src/frontend/package.json ... │
+│     RUN npm ci                           │
+└─────────────────────────────────────────┘
+         │
+         ▼
+    イメージができる
+```
+
+重要なのは **① の段階で `context` 配下のファイルをすべて読みに行く** ことです。Dockerfile の `COPY` で実際に使うのは `package.json` だけでも、走査対象はコンテキスト全体です。
+
+今回のエラーは、② の `COPY` ではなく ① の走査で `docker/db/data/#innodb_temp` にアクセスできず落ちていました。
+
+### バインドマウントとの違い
+
+| | ビルドコンテキスト | バインドマウント |
+|---|---|---|
+| **いつ** | `docker build` / `up --build` のとき | コンテナ**起動後**の実行時 |
+| **何をするか** | ホストのファイルを Docker デーモンへ送る | ホストのディレクトリをコンテナ内にマウント |
+| **今回の設定** | `context: .`（ルート全体） | `./docker/db/data:/var/lib/mysql` |
+
+DB のバインドマウントは実行時の話で、ビルドエラーとは別のレイヤーです。ただし `context: .` にすると、**実行用の DB データもビルド時の走査対象に入ってしまう** のが今回の問題でした。
+
+---
+
+## `.dockerignore` とは
+
+`.gitignore` の Docker 版です。**ビルドコンテキストから除外するファイル・ディレクトリ** を指定します。
+
+```
+seaweed/
+├── .dockerignore     ← ここに書く（context のルートに置く）
+├── docker-compose.yml
+└── ...
+```
+
+### 動作
+
+```
+context: . の走査時
+
+  src/frontend/     → 含める ✓
+  docker/db/data/   → .dockerignore で除外 ✗（走査しない）
+  memo/             → 除外 ✗
+  **/node_modules   → 除外 ✗
+```
+
+`.gitignore` と似ていますが、対象が違います。
+
+| ファイル | 除外のタイミング | 主な目的 |
+|---|---|---|
+| `.gitignore` | `git add` 時 | リポジトリに入れない |
+| `.dockerignore` | `docker build` 時 | ビルドコンテキストに入れない |
+
+### 今回追加した各項目の理由
+
+| 除外パス | 理由 |
+|---|---|
+| `docker/db/data` | MySQL が root 所有で作るためホストから読めずエラーになる。Dockerfile でも不要 |
+| `.git` | ビルドに不要。容量が大きい |
+| `memo`, `docs` | 開発メモ・ドキュメント。イメージに不要 |
+| `**/__pycache__` 等 | Python のキャッシュ。コンテナ内で再生成される |
+| `**/node_modules` | frontend はコンテナ内で `npm ci` するためホスト側は不要。数万ファイルの送信を避けられる |
+
+---
+
+## 別の解決策：コンテキストを狭める
+
+`.dockerignore` の代わりに、そもそもコンテキストを小さくする方法もあります。
+
+```yaml
+frontend:
+  build:
+    context: ./src/frontend   # frontend だけをコンテキストに
+    dockerfile: ../../docker/frontend/Dockerfile
+```
+
+この場合、Dockerfile の `COPY` も変更が必要です。
+
+```dockerfile
+# 変更前（context がルートのとき）
+COPY ./src/frontend/package.json ./src/frontend/package-lock.json ./
+
+# 変更後（context が src/frontend のとき）
+COPY package.json package-lock.json ./
+```
+
+どちらも有効ですが、現状の `context: .` を維持するなら `.dockerignore` が手軽です。
+
+---
+
+## まとめ
+
+- **ビルドコンテキスト** = `docker build` 時に Docker デーモンへ送るファイルの範囲（`context:` で指定）
+- **`.dockerignore`** = その範囲から除外するリスト（`.gitignore` のビルド版）
+- 今回のエラーは DB バインドマウントの実行時問題ではなく、**ビルド時に DB データディレクトリまで走査していた** ことが原因
+- `docker/db/data` を `.dockerignore` に入れることで、走査をスキップしビルドが通るようになります
+
+`docker-compose up -d --build` を再度実行すれば、以前の PermissionError は出ないはずです。

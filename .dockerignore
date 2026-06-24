@@ -1,0 +1,15 @@
+# DB データ（コンテナ内 mysql が root 所有で作成するため、ビルド時に読めない）
+docker/db/data
+
+# ビルドに不要なディレクトリ
+.git
+memo
+docs
+
+# Python
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+# Node（コンテナ内で npm ci するためホストの node_modules は不要）
+**/node_modules
