@@ -9,7 +9,9 @@ services:
       - ./src/backend:/app
     environment:
       - PYTHONDONTWRITEBYTECODE=1 # pythonのキャッシュを作らないようにする(大量の同期が発生するため)
-      - PYTHONUNBUFFERED=1 #
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - db
 
   frontend:
     build:
@@ -20,3 +22,19 @@ services:
     volumes:
       - ./src/frontend:/app
     tty: true
+    stdin_open: true
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret_root_pass
+      - MYSQL_DATABASE=seaweed_db
+      - MYSQL_USER=seaweed_user
+      - MYSQL_PASSWORD=seaweed_pass
+    volumes:
+      # 【変更】名前付きボリュームから、ホストの /docker/db/data へのマウントに変更
+      - ./docker/db/data:/var/lib/mysql
+      # 初期化SQL
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
