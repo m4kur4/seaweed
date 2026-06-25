@@ -3,7 +3,7 @@
 ## 共通設定
 
 ### データベース名
-seaweed
+seaweed_db
 ### エンジン
 InnoDB
 ### 文字コード

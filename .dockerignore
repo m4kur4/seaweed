@@ -3,6 +3,7 @@ docker/db/data
 
 # ビルドに不要なディレクトリ
 .git
+.env
 memo
 docs
 

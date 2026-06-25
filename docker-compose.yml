@@ -7,11 +7,14 @@ services:
       - "8000:8000"
     volumes:
       - ./src/backend:/app
+    env_file:
+      - .env
     environment:
       - PYTHONDONTWRITEBYTECODE=1 # pythonのキャッシュを作らないようにする(大量の同期が発生するため)
       - PYTHONUNBUFFERED=1 # Pythonの出力をバッファリングせずリアルタイムで表示させる(エラー追跡のため)
     depends_on:
-      - db
+      db:
+        condition: service_healthy # コンテナ自体は起動してもMySQLが起動していない場合は待つようにする
 
   frontend:
     build:
@@ -27,11 +30,19 @@ services:
     image: mysql:8.0
     ports:
       - "3306:3306"
+    env_file:
+      - .env
     environment:
-      - MYSQL_ROOT_PASSWORD=secret_root_pass
-      - MYSQL_DATABASE=seaweed_db
-      - MYSQL_USER=seaweed_user
-      - MYSQL_PASSWORD=seaweed_pass
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     volumes:
       - ./docker/db/data:/var/lib/mysql
       # 初期化SQL

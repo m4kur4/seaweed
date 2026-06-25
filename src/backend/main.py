@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+
+from database import get_db
+import models
 
 app = FastAPI()
 
@@ -28,4 +32,16 @@ def get_wakame_status():
         "status": "乾燥ワカメ",
         "length_cm": 5,
         "message": "まだ水が足りません！"
+    }
+
+# DB接続テスト用のエンドポイント
+@app.get("/api/transactions")
+def get_transactions(db: Session = Depends(get_db)):
+    # models.Transactionクラスを使ってMySQLのtransactionsテーブルから全件取得
+    transactions = db.query(models.Transaction).all()
+
+    return {
+        "status": "success",
+        "data_count": len(transactions),
+        "transactions": transactions
     }
