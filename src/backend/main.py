@@ -38,19 +38,38 @@ def get_wakame_status():
 # DB接続テスト用のエンドポイント
 @app.get("/api/transactions")
 def get_transactions(db: Session = Depends(get_db)):
-    # models.Transactionクラスを使ってMySQLのtransactionsテーブルから全件取得
-    transactions = db.query(models.Transaction).all()
+    # DBから日付順(昇順)で全件取得
+    transactions = db.query(models.Transaction).order_by(models.Transaction.transaction_date.asc()).all()
+    response_data = []
+    current_balance = 0 # 累積残高
+
+    # 過去のデータから順にループを回し、その時点の残高(基準額)を計算する
+    for t in transactions:
+        # 当日の処理が始まる前の時点の残高が「基準額 (0:00時点の貯金額)となｒ
+        baseline_amount = current_balance
+        if t.transaction_type == "income":
+            current_balance += t.transaction_amount
+        else:
+            current_balance -= t.transaction_amount
+
+        response_data.append({
+            "transaction_date": t.transaction_date,
+            "transaction_amount": t.transaction_amount,
+            "transaction_type": t.transaction_type,
+            "description": t.description,
+            "baseline_amount": baseline_amount,
+            "current_balance": current_balance
+        })
+    # 最新のデータが上に来るように、最終的には日付の降順にひっくり返してフロントへ返す
+    response_data.reverse()
 
     return {
         "status": "success",
         "data_count": len(transactions),
-        # "transactions": transactions
-        "transactions": [
-            schemas.TransactionRead.model_validate(t) for t in transactions
-        ]
+        "transactions": response_data
     }
 
-# # データ登録用のエンドポイント
+# データ登録用のエンドポイント
 @app.post("/api/transactions", status_code=status.HTTP_201_CREATED)
 def create_transactions(
     transaction_in: schemas.TransactionCreate,
