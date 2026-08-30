@@ -1,0 +1,17 @@
+---
+description: seaweed の正本・スタック・進め方（常時）
+alwaysApply: true
+---
+
+# プロジェクト正本
+
+- 要件の正は `docs/requirements/要件定義書.md`。
+- 作り方の正は `docs/design/` の設計書（存在する範囲）。
+- 実装コードは設計の後。現時点では未作成。存在しない旧 Python / 旧 React パスを参照しない。
+- スタックは React / Spring Boot / MySQL。EC2 同居、Tailscale 閉域。RDS・公開 HTTPS・アプリ内許可 IP は使わない。
+
+# 作業の進め方
+
+- 設計: `docs/design/設計成果物一覧.md` の順、1 指示 1 ファイル。依頼テンプレートは `docs/design/生成指示方針.md`。
+- 実装: 設計書が揃ってから。設計にない機能は足さない。衝突なら実装前に差分を出す。
+- 要件定義書を、依頼なしに書き換えない。

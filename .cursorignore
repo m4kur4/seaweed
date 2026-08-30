@@ -1,0 +1,12 @@
+# 生成物・依存。実装開始後も src/ は無視しない
+node_modules/
+target/
+dist/
+build/
+.git/
+.idea/
+*.class
+*.pyc
+__pycache__/
+.env
+*.log
